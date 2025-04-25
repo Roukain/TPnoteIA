@@ -7,7 +7,6 @@ from sklearn.metrics import accuracy_score, classification_report
 import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
 import tqdm 
-
 # Charger le dataset IMDb
 df1 = pd.read_csv('imdb_train.csv')  
 X_train = df1['text']
@@ -37,16 +36,15 @@ class MLP(nn.Module):
     def __init__(self):
         super(MLP, self).__init__()
         self.fc1 = nn.Linear(5000, 128)
-        self.dropout = nn.Dropout(0.2)
         self.fc2 = nn.Linear(128, 64)
         self.fc3 = nn.Linear(64, 2)
 
     def forward(self, x):
         x = torch.relu(self.fc1(x))
-        x = self.dropout(x)
         x = torch.relu(self.fc2(x))
-        x = self.dropout(x)
-        return self.fc3(x)
+        x = self.fc3(x)
+        return x
+
 
 def train(criterion = nn.CrossEntropyLoss()):
     model = MLP()
@@ -59,8 +57,7 @@ def train(criterion = nn.CrossEntropyLoss()):
             optimizer.zero_grad()
             outputs = model(inputs)
             loss = criterion(outputs, labels)
-            loss.backward()
-            optimizer.step()
+           # Compléter les étapes d'entrainement
 
     # Évaluation du modèle
     model.eval()
