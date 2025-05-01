@@ -35,20 +35,18 @@ X_test  = vectorizer.transform(X_test_text)
 X_unsup = vectorizer.transform(X_unsup_text)
 
 # Conversion en tenseurs PyTorch
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-X_train_t = torch.tensor(X_train.toarray(), dtype=torch.float32).to(device)
-y_train_t = torch.tensor(y_train.values, dtype=torch.long).to(device)
-X_test_t  = torch.tensor(X_test.toarray(),  dtype=torch.float32).to(device)
-y_test_t  = torch.tensor(y_test.values,  dtype=torch.long).to(device)
-X_unsup_t = torch.tensor(X_unsup.toarray(), dtype=torch.float32).to(device)
+X_train_t = torch.tensor(X_train.toarray(), dtype=torch.float32)
+y_train_t = torch.tensor(y_train.values, dtype=torch.long)
+X_test_t  = torch.tensor(X_test.toarray(),  dtype=torch.float32)
+y_test_t  = torch.tensor(y_test.values,  dtype=torch.long)
+X_unsup_t = torch.tensor(X_unsup.toarray(), dtype=torch.float32)
 
 # DataLoader pour supervisé
-batch_size = 32
 train_ds = TensorDataset(X_train_t, y_train_t)
-train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
+train_loader = DataLoader(train_ds, batch_size=32, shuffle=True)
 
 # DataLoader pour unsupervisé (pas de labels)
-unsup_loader = DataLoader(X_unsup_t, batch_size=batch_size, shuffle=False)
+unsup_loader = DataLoader(X_unsup_t, batch_size=32, shuffle=False)
 
 # --- 3. Définition du modèle ---
 class MLP_CE(nn.Module):
@@ -58,6 +56,7 @@ class MLP_CE(nn.Module):
         self.dropout = nn.Dropout(p)
         self.fc2 = nn.Linear(h1, h2)
         self.fc3 = nn.Linear(h2, 2)
+
     def forward(self, x):
         x = torch.relu(self.fc1(x))
         x = self.dropout(x)
@@ -97,7 +96,7 @@ def pseudo_label(model, loader, threshold=0.9):
         Xp = torch.cat(pseudo_texts, dim=0)
         yp = torch.cat(pseudo_labels, dim=0)
         print(f"{len(yp)} samples pseudo-étiquetés (seuil {threshold})")
-        return Xp.to(device), yp.to(device)
+        return Xp, yp
     else:
         print("Aucun pseudo-label généré, ajustez le seuil.")
         return None, None
@@ -105,7 +104,7 @@ def pseudo_label(model, loader, threshold=0.9):
 # --- 6. Pipeline complet ---
 if __name__ == '__main__':
     # 6.1 Entraînement initial
-    model = MLP_CE().to(device)
+    model = MLP_CE()
     opt = optim.Adam(model.parameters(), lr=1e-3)
     ce = nn.CrossEntropyLoss()
     train_supervised(model, train_loader, ce, opt, epochs=5)
@@ -113,8 +112,9 @@ if __name__ == '__main__':
     # 6.2 Evaluation sur test (baseline)
     model.eval()
     with torch.no_grad():
-        out_test = model(X_test_t)
+        out_test = model(X_test_t)  # Ne pas passer y_test_t ici
         _, pred_test = out_test.max(1)
+
     print("\n=== Baseline (supervisé seul) ===")
     print(classification_report(y_test_t.cpu().numpy(), pred_test.cpu().numpy()))
 
@@ -124,10 +124,10 @@ if __name__ == '__main__':
         # 6.4 Création du DataLoader combiné
         sup_ds    = TensorDataset(X_train_t, y_train_t)
         pseudo_ds = TensorDataset(Xp, yp)
-        comb_loader = DataLoader(ConcatDataset([sup_ds, pseudo_ds]), batch_size=batch_size, shuffle=True)
+        comb_loader = DataLoader(ConcatDataset([sup_ds, pseudo_ds]), batch_size=32, shuffle=True)
         
         # 6.5 Ré-entraînement sur ensemble combiné
-        model2 = MLP_CE().to(device)
+        model2 = MLP_CE()
         opt2 = optim.Adam(model2.parameters(), lr=1e-3)
         train_supervised(model2, comb_loader, ce, opt2, epochs=5)
 
